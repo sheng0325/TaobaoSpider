@@ -1,10 +1,18 @@
 # settings.py
 import json
 import time
+import yaml
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+def load_config(file_path='config.yaml'):
+    """
+    加载配置文件
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
 
 def load_accounts(file_path='accounts.json'):
     """
@@ -33,7 +41,6 @@ def choose_accounts(accounts):
             idx = int(c)
             if 1 <= idx <= len(accounts):
                 selected_indices.append(idx-1)
-    # 返回选中的账号列表
     return [accounts[i] for i in selected_indices]
 
 def get_driver():
@@ -43,7 +50,6 @@ def get_driver():
     options = webdriver.ChromeOptions()
     options.add_experimental_option("excludeSwitches", ['enable-automation'])
     driver = webdriver.Chrome(options=options)
-    # 隐藏webdriver特征
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
         {"source": """Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"""}
@@ -52,14 +58,16 @@ def get_driver():
 
 def auto_login(driver, username, password):
     """
-    自动登录淘宝
+    自动登录淘宝，但等待用户手动完成验证
     """
     wait = WebDriverWait(driver, 15)
     driver.get("https://login.taobao.com/")
+    
     # 等待用户名和密码输入框
     user_input = wait.until(EC.presence_of_element_located((By.ID, "fm-login-id")))
     pwd_input = wait.until(EC.presence_of_element_located((By.ID, "fm-login-password")))
 
+    # 输入账号密码
     user_input.clear()
     user_input.send_keys(username)
     pwd_input.clear()
@@ -69,12 +77,14 @@ def auto_login(driver, username, password):
     login_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, ".fm-btn button")))
     login_btn.click()
 
-    # 给一些时间处理可能的验证码/滑块
-    time.sleep(10)
+    print(f"\n[{username}] 请在浏览器中完成验证操作...")
+    input(f"[{username}] 完成验证后请按回车继续...")
 
-    # 判断是否成功登录(简易判断)
+    # 验证登录状态
     try:
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#J_SiteNavMytaobao")))
         print(f"[{username}] 登录成功!")
+        return True
     except:
-        print(f"[{username}] 登录可能需要验证码或滑块，请手动处理或检查账号密码~")
+        print(f"[{username}] 登录失败，请检查账号状态!")
+        return False
