@@ -7,7 +7,7 @@ import excel_utils
 
 def task4_homepage(selected_accounts):
     """
-    任务4：在淘宝首页抓取商品信息(或“猜你喜欢”一类)
+    任务4：在淘宝首页抓取商品信息(或"猜你喜欢"一类)
     - 没有翻页，通过向下滚动加载更多
     - 这里简单演示向下滚动N次，抓取页面中的一些商品DOM
     """
@@ -15,41 +15,79 @@ def task4_homepage(selected_accounts):
     scroll_times = int(input("【任务4】需要向下滚动加载几次？ "))
 
     # 创建Excel
-    title_list = ["Index", "Title", "Price", "URL"]
+    title_list = ["Account", "Index", "Title", "Price", "Deal", "Tag", "ItemURL", "ImgURL"]
     wb, ws = excel_utils.create_workbook(title_list)
     current_row = 2
     count = 1
 
-    # 打开淘宝首页
-    driver.get("https://www.taobao.com/")
-    time.sleep(3)
+    for acc in selected_accounts:
+        # 初始化浏览器并登录
+        driver = get_driver()
+        from settings import auto_login
+        auto_login(driver, acc['username'], acc['password'])
 
-    # 模拟向下滚动多次
-    for i in range(scroll_times):
-        print(f"【任务4】第{i+1}次向下滚动...")
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(3)  # 等待加载
+        # 打开淘宝首页
+        driver.get("https://www.taobao.com/")
+        time.sleep(3)
+        
+        # 设置页面缩放为75%
+        driver.execute_script("document.body.style.zoom='75%'")
+        time.sleep(1)
 
-    # 页面源码
-    html = driver.page_source
-    doc = pq(html)
+        # 模拟向下滚动多次
+        for i in range(scroll_times):
+            print(f"[{acc['username']}] 第{i+1}次向下滚动...")
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(3)  # 等待加载
 
-    # 假设你想抓取“猜你喜欢”这个模块的商品(需自己观察页面结构)
-    # 这里仅示例
-    items = doc("div.may-like").find(".maylike-content").items()
-    for it in items:
-        title = it.find(".maylike-desc").text()
-        price = it.find(".maylike-price").text()
-        url = it.find(".maylike-goods-pic a").attr("href")
-        if url and url.startswith("//"):
-            url = "https:" + url
+        # 页面源码
+        html = driver.page_source
+        doc = pq(html)
 
-        ws.cell(row=current_row, column=1, value=count)
-        ws.cell(row=current_row, column=2, value=title)
-        ws.cell(row=current_row, column=3, value=price)
-        ws.cell(row=current_row, column=4, value=url)
+        # 使用新的选择器来抓取商品信息
+        items = doc('.tb-pick-content-item').items()
+        for item in items:
+            # 商品标题
+            title = item.find('.info-wrapper-title-text').text()
+            
+            # 价格（组合单位和数值）
+            price_unit = item.find('.price-unit').text()
+            price_value = item.find('.price-value').text()
+            price = float(price_value) if price_value else 0.0
+            
+            # 成交量
+            deal = item.find('.month-sale').text().replace('人购买', '')
+            
+            # 商品链接
+            t_url = item.find('.item-link').attr('href')
+            
+            # 商品图片
+            img_url = item.find('.product-img').attr('src')
+            
+            # 标签信息
+            tag = item.find('.tag-text').text()
+            
+            # 确保URL是完整的
+            if t_url and t_url.startswith('//'):
+                t_url = f"https:{t_url}"
+            if img_url and img_url.startswith('//'):
+                img_url = f"https:{img_url}"
 
-        current_row += 1
-        count += 1
+            # 写入Excel
+            ws.cell(row=current_row, column=1, value=acc['username'])  # Account
+            ws.cell(row=current_row, column=2, value=count)           # Index
+            ws.cell(row=current_row, column=3, value=title)          # Title
+            ws.cell(row=current_row, column=4, value=price)          # Price
+            ws.cell(row=current_row, column=5, value=deal)           # Deal
+            ws.cell(row=current_row, column=6, value=tag)            # Tag
+            ws.cell(row=current_row, column=7, value=t_url)          # ItemURL
+            ws.cell(row=current_row, column=8, value=img_url)        # ImgURL
 
+            current_row += 1
+            count += 1
+
+        # 关闭当前账号的浏览器
+        driver.quit()
+
+    # 最后保存Excel
     excel_utils.save_workbook(wb, filename_prefix="Task4_Homepage")
