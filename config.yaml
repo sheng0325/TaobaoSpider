@@ -13,6 +13,7 @@ task1:
   # 要使用的账号在 accounts.json 里的索引，比如同时用第0个和第2个账号
   accounts_index:
     - 0
+    - 1
   # 搜索的商品列表
   products:
     - 洗衣液

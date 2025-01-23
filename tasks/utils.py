@@ -43,7 +43,7 @@ def init_webdriver(driver_path: str, headless: bool = False):
     driver.maximize_window()
     return driver
 
-def login_taobao(driver, username: str, password: str, manual_verify_wait: int = 60):
+def login_taobao(driver, username: str, password: str, manual_verify_wait: int =300):
     """
     登录淘宝示例：可能会遇到验证码、滑块、短信、扫码等复杂验证
     这里只做基本示例，若出现验证，则手动处理后回车继续
