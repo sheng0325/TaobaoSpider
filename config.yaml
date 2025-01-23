@@ -1,19 +1,55 @@
-# 任务配置
-task:
-  # 要执行的任务编号: 1, 1p, 2, 3, 4, 4p
-  id: "2"
-  # 选择要使用的账号序号（从1开始）
-  accounts: [1, 2]
-  # 搜索关键词列表
-  keywords:
-    - "机械键盘"
-    - "无线键盘"
-    - "游戏键盘"
-  # 任务1和2的配置
-  search:
-    pages_per_keyword: 3  # 每个关键词抓取页数
-    dynamic_times: 5      # 动态监控次数
-    interval_minutes: 30  # 监控间隔（分钟）
-  # 任务4的配置
-  homepage:
-    scroll_times: 10  # 向下滚动次数
+# config.yaml
+
+global:
+  # 是否显示浏览器界面（False则使用无界面模式）
+  headless: False
+  # Chromedriver路径
+  driver_path: "./chromedriver"
+  # 登录后手动验证的等待提示（秒），根据自身情况调整
+  manual_verify_wait: 60
+
+# 任务1配置
+task1:
+  # 要使用的账号在 accounts.json 里的索引，比如同时用第0个和第2个账号
+  accounts_index:
+    - 0
+  # 搜索的商品列表
+  products:
+    - 洗衣液
+    - 牙膏
+  # 最大爬取页数
+  max_pages: 2
+  # 输出文件
+  output_file: "./outputs/task1_output.xlsx"
+
+# 任务2配置
+task2:
+  # 要使用的账号索引
+  accounts_index:
+    - 0
+  # 每次爬取的页数（本示例只爬1页）
+  pages_per_round: 1
+  # 爬取总轮次
+  crawl_rounds: 3
+  # 轮次间隔（秒）
+  interval_seconds: 10
+  # 搜索的商品列表
+  products:
+    - 运动鞋
+  # 输出文件
+  output_file: "./outputs/task2_output.xlsx"
+
+# 任务3配置（暂不实现）
+task3:
+  # 保留预留结构
+  accounts_index:
+    - 0
+  # 更多配置...
+
+# 任务4配置
+task4:
+  # 要使用的账号索引
+  accounts_index:
+    - 0  # 滚动次数
+  scroll_times: 5
+  # 输出文件

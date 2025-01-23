@@ -1,90 +1,31 @@
-# settings.py
-import json
-import time
-import yaml
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import openpyxl as op
+import time
 
-def load_config(file_path='config.yaml'):
-    """
-    加载配置文件
-    """
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+# 全局变量
+count = 1  # 写入Excel商品计数
+KEYWORD = input('输入搜索的商品关键词Keyword：')
+pageStart = int(input('输入爬取的起始页PageStart：'))
+pageEnd = int(input('输入爬取的终止页PageEnd：'))
 
-def load_accounts(file_path='accounts.json'):
-    """
-    从本地JSON文件中加载所有账号
-    """
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+# 启动ChromeDriver服务及设置
+options = webdriver.ChromeOptions()
+options.add_experimental_option("excludeSwitches", ['enable-automation'])
+driver = webdriver.Chrome(options=options)
 
-def choose_accounts(accounts):
-    """
-    一次可选择多个账号，使用逗号分隔输入
-    """
-    print("可选择的账号如下：")
-    for i, acc in enumerate(accounts, start=1):
-        print(f"{i}. {acc['username']} ({acc['type']})")
+driver.execute_cdp_cmd(
+    "Page.addScriptToEvaluateOnNewDocument",
+    {"source": """Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"""}
+)
+driver.get('https://www.taobao.com')
+driver.maximize_window()
 
-    choice = input("请输入要使用的账号序号(可用逗号分隔，如 1,2): ").strip()
-    if not choice:
-        print("未选择任何账号，即将退出...")
-        return []
+wait = WebDriverWait(driver, 10)
 
-    selected_indices = []
-    for c in choice.split(','):
-        c = c.strip()
-        if c.isdigit():
-            idx = int(c)
-            if 1 <= idx <= len(accounts):
-                selected_indices.append(idx-1)
-    return [accounts[i] for i in selected_indices]
+# 等待用户扫码登录
+print("请在浏览器中完成扫码登录，然后再继续运行脚本。")
+time.sleep(10)  # 假设给用户10秒时间扫码登陆
 
-def get_driver():
-    """
-    返回一个新的Chrome driver实例，附带反爬配置
-    """
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("excludeSwitches", ['enable-automation'])
-    driver = webdriver.Chrome(options=options)
-    driver.execute_cdp_cmd(
-        "Page.addScriptToEvaluateOnNewDocument",
-        {"source": """Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"""}
-    )
-    return driver
-
-def auto_login(driver, username, password):
-    """
-    自动登录淘宝，但等待用户手动完成验证
-    """
-    wait = WebDriverWait(driver, 15)
-    driver.get("https://login.taobao.com/")
-    
-    # 等待用户名和密码输入框
-    user_input = wait.until(EC.presence_of_element_located((By.ID, "fm-login-id")))
-    pwd_input = wait.until(EC.presence_of_element_located((By.ID, "fm-login-password")))
-
-    # 输入账号密码
-    user_input.clear()
-    user_input.send_keys(username)
-    pwd_input.clear()
-    pwd_input.send_keys(password)
-
-    # 点击登录按钮
-    login_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, ".fm-btn button")))
-    login_btn.click()
-
-    print(f"\n[{username}] 请在浏览器中完成验证操作...")
-    input(f"[{username}] 完成验证后请按回车继续...")
-
-    # 验证登录状态
-    try:
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#J_SiteNavMytaobao")))
-        print(f"[{username}] 登录成功!")
-        return True
-    except:
-        print(f"[{username}] 登录失败，请检查账号状态!")
-        return False
+# 初始化全局变量供其他模块使用
+__all__ = ['driver', 'wait', 'KEYWORD', 'pageStart', 'pageEnd', 'count']
