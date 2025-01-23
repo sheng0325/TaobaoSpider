@@ -52,5 +52,6 @@ task4:
   # 要使用的账号索引
   accounts_index:
     - 0  # 滚动次数
-  scroll_times: 5
+  scroll_times: 10
   # 输出文件
+  output_file: "./outputs/task4_output.xlsx"

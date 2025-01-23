@@ -135,6 +135,42 @@ def parse_item_info(item):
         "img_url": img_url
     }
 
+def parse_item_info_task4(item):
+    item = pq(item)  # 将 item 转换为 PyQuery 对象
+
+    # 定位商品标题
+    title = item.find('.info-wrapper-title-text').text()
+
+    # 定位价格
+    price = item.find('.price-value').text()
+    price_unit = item.find('.price-unit').text()
+    price = f"{price_unit}{price}"
+
+    # 定位销量
+    sales = item.find('.month-sale').text()
+
+    # 定位商品链接
+    link = item.find('.item-link').attr('href')
+    if link and not link.startswith('http'):
+        link = f"https:{link}"
+
+    # 定位商品图片
+    img_url = item.find('.product-img').attr('src')
+    if img_url and not img_url.startswith('http'):
+        img_url = f"https:{img_url}"
+
+    # 定位促销信息
+    promotions = [t.text() for t in item.find('.tag-text').items()]
+
+    return {
+        "title": title,
+        "price": price,
+        "deal": sales,
+        "t_url": link,
+        "img_url": img_url,
+        "promotions": promotions
+    }
+
 def save_to_excel(excel_path, sheet_name, data_list, headers):
     """
     将数据写入Excel，如果文件不存在则创建，否则删除同名sheet后再创建
