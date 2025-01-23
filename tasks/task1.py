@@ -1,297 +1,160 @@
+# tasks/task1.py
 
-
-import os
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException, TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from pyquery import PyQuery as pq
+from .utils import (
+    init_webdriver,
+    login_taobao,
+    scroll_to_bottom,
+    parse_item_info,
+    save_to_excel
+)
 
-import openpyxl
-from openpyxl import Workbook, load_workbook
+def run_task1(config, accounts):
+    print("===== 开始执行任务1：搜索商品价格数据 =====")
 
-# ===== 全局变量 =====
-count = 2  # Excel写入行数的计数，假设第1行是表头，从第2行开始写
-wb = None  # 全局工作簿对象
-ws = None  # 全局工作表对象
+    task_cfg = config['task1']
+    accounts_index = task_cfg['accounts_index']       # 要使用哪些账号（索引列表）
+    products = task_cfg['products']                  # 搜索商品列表
+    max_pages = task_cfg['max_pages']                # 爬取多少页
+    output_file = task_cfg['output_file']            # Excel输出文件
 
-def init_excel(file_name, sheet_name="Sheet1"):
-    """
-    初始化Excel。如果文件不存在则创建，并写入表头；
-    如果文件存在则直接加载（并假设已包含表头）。
-    返回 (wb, ws) 对象
-    """
-    if not os.path.exists(file_name):
-        print(f"Excel 文件 [{file_name}] 不存在，将新建并写入表头...")
-        wb_new = Workbook()
-        ws_new = wb_new.active
-        ws_new.title = sheet_name
-
-        # 写入表头，按你需要的字段自定义
-        ws_new.cell(row=1, column=1, value='Page')
-        ws_new.cell(row=1, column=2, value='Num')
-        ws_new.cell(row=1, column=3, value='title')
-        ws_new.cell(row=1, column=4, value='price')
-        ws_new.cell(row=1, column=5, value='deal')
-        ws_new.cell(row=1, column=6, value='location')
-        ws_new.cell(row=1, column=7, value='shop')
-        ws_new.cell(row=1, column=8, value='isPostFree')
-        ws_new.cell(row=1, column=9, value='url')
-        ws_new.cell(row=1, column=10, value='shop_url')
-        ws_new.cell(row=1, column=11, value='img_url')
-        ws_new.cell(row=1, column=12, value='style1')
-        ws_new.cell(row=1, column=13, value='style2')
-        ws_new.cell(row=1, column=14, value='style3')
-
-        wb_new.save(file_name)
-        return wb_new, ws_new
-    else:
-        print(f"Excel 文件 [{file_name}] 已存在，将直接加载...")
-        wb_exist = load_workbook(file_name)
-        if sheet_name in wb_exist.sheetnames:
-            ws_exist = wb_exist[sheet_name]
-        else:
-            ws_exist = wb_exist.create_sheet(sheet_name)
-            # 如果新 sheet，需要写表头
-            ws_exist.cell(row=1, column=1, value='Page')
-            ws_exist.cell(row=1, column=2, value='Num')
-            ws_exist.cell(row=1, column=3, value='title')
-            ws_exist.cell(row=1, column=4, value='price')
-            ws_exist.cell(row=1, column=5, value='deal')
-            ws_exist.cell(row=1, column=6, value='location')
-            ws_exist.cell(row=1, column=7, value='shop')
-            ws_exist.cell(row=1, column=8, value='isPostFree')
-            ws_exist.cell(row=1, column=9, value='url')
-            ws_exist.cell(row=1, column=10, value='shop_url')
-            ws_exist.cell(row=1, column=11, value='img_url')
-            ws_exist.cell(row=1, column=12, value='style1')
-            ws_exist.cell(row=1, column=13, value='style2')
-            ws_exist.cell(row=1, column=14, value='style3')
-
-        return wb_exist, ws_exist
-
-def init_driver(driver_path, headless=False):
-    """
-    初始化 Selenium WebDriver
-    """
-    chrome_options = Options()
-    if headless:
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--disable-gpu')
-    # 根据需要添加更多选项
-    service = Service(driver_path)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    driver.maximize_window()
-    return driver
-
-def login_taobao(driver, username, password):
-    """
-    简易示例：登录淘宝（可能需要手动滑块、验证码等）
-    """
-    print("1) 打开淘宝登录页")
-    driver.get("https://login.taobao.com/")
-    time.sleep(2)
+    global_cfg = config['global']
+    driver_path = global_cfg['driver_path']
+    headless = global_cfg['headless']
+    manual_verify_wait = global_cfg['manual_verify_wait']
 
     try:
-        print("2) 切换到密码登录页面（若有）")
-        pwd_login_tab = driver.find_element(By.XPATH, '//a[@class="forget-pwd J_Quick2Static"]')
-        pwd_login_tab.click()
-        time.sleep(1)
-    except NoSuchElementException:
-        print("   - 没有找到切换到密码登录的按钮，可能已经是密码登录界面。")
-
-    print("3) 输入用户名和密码")
-    user_input = driver.find_element(By.ID, "fm-login-id")
-    user_input.clear()
-    user_input.send_keys(username)
-    time.sleep(0.5)
-
-    pwd_input = driver.find_element(By.ID, "fm-login-password")
-    pwd_input.clear()
-    pwd_input.send_keys(password)
-    time.sleep(0.5)
-
-    print("4) 点击登录按钮")
-    login_btn = driver.find_element(By.XPATH, '//button[@type="submit"]')
-    login_btn.click()
-
-    print("如果出现验证码或滑块，需要你手动处理；处理完后按回车继续")
-    input("   按回车继续...")
-
-    # 等待一下，给页面跳转时间
-    time.sleep(3)
-    print("   - 登录流程结束")
-
-def get_goods(page, driver, wb, ws):
-    """
-    根据你给出的示例编写的函数：
-    1. 等待用户手动确认“页面加载完毕”，输入数字“1”开始爬取
-    2. 使用 PyQuery 解析当前页面 HTML
-    3. 提取商品信息并写入 Excel
-    """
-    global count  # 引用全局计数
-
-    # 手动确认页面加载完毕
-    user_in = input('确认界面加载完毕，输入数字“1”开始爬取-->')
-    # Python里 input() 返回字符串，需要判断 == '1' 而不是 1
-    if user_in.strip() == '1':
-        pass
-    else:
-        print("   - 非“1”，跳过爬取。")
+        driver = init_webdriver(driver_path, headless)
+    except Exception as e:
+        print(f"初始化 WebDriver 失败: {e}")
         return
 
-    # 获取当前页面HTML
-    html = driver.page_source
-    doc = pq(html)
+    wait = WebDriverWait(driver, 20)
 
-    # 提取所有商品外层选择器（根据你给的示例）
-    items = doc('div.content--CUnfXXxv > div > div').items()
-    for item in items:
-        # 标题
-        title = item.find('.title--qJ7Xg_90 span').text()
-        # 价格
-        price_int = item.find('.priceInt--yqqZMJ5a').text()
-        price_float = item.find('.priceFloat--XpixvyQ1').text()
-        if price_int and price_float:
-            price = float(f"{price_int}{price_float}")
-        else:
-            price = 0.0
-        # 交易量
-        deal = item.find('.realSales--XZJiepmt').text()
-        # 所在地
-        location = item.find('.procity--wlcT2xH9 span').text()
-        # 店名
-        shop = item.find('.shopNameText--DmtlsDKm').text()
-        # 包邮？
-        postText = item.find('.subIconWrapper--Vl8zAdQn').text()
-        postText = "包邮" if "包邮" in postText else "/"
-        # 商品URL
-        t_url_el = item.find('.doubleCardWrapperAdapt--mEcC7olq')
-        t_url = t_url_el.attr('href') if t_url_el else ''
-        # 店铺URL
-        shop_url_el = item.find('.TextAndPic--grkZAtsC a')
-        shop_url = shop_url_el.attr('href') if shop_url_el else ''
-        # 图片URL
-        img_el = item.find('.mainPicAdaptWrapper--V_ayd2hD img')
-        img_url = img_el.attr('src') if img_el else ''
+    for idx in accounts_index:
+        # 取账号信息
+        try:
+            account = accounts[idx]
+            username = account['username']
+            password = account['password']
+            acc_type = account['type']  # 用于区分 sheet 名
+        except IndexError:
+            print(f"账号索引 {idx} 超出范围，请检查 accounts.json 中的账号数量。")
+            continue
+        except Exception as e:
+            print(f"读取账号信息时发生异常：{e}")
+            continue
 
-        # 风格
-        style_list = item('div.abstractWrapper--whLX5va5 > div').items()
-        style = []
-        for s in style_list:
-            s_span = s('div.descBox--RunOO4S3 > span').text()
-            if s_span:
-                style.append(s_span)
+        print(f"=== 正在使用账号索引: {idx}, type: {acc_type}, username: {username} ===")
+        # 登录
+        try:
+            login_taobao(driver, username, password, manual_verify_wait)
+        except Exception as e:
+            print(f"登录过程中发生异常：{e}")
+            driver.save_screenshot(f"login_error_account_{idx}.png")
+            continue  # 继续下一个账号
 
-        # 构建字典（可选，调试用）
-        product = {
-            'Page':       page,
-            'Num':        count - 1,
-            'title':      title,
-            'price':      price,
-            'deal':       deal,
-            'location':   location,
-            'shop':       shop,
-            'isPostFree': postText,
-            'url':        t_url,
-            'shop_url':   shop_url,
-            'img_url':    img_url,
-            'style':      style
-        }
-        print(product)
+        # 确认登录状态
+        try:
+            user_avatar = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '.J_UserMemberAvatar.member-avatar.member-avatar-order')))            
+            print("登录成功。")
+        except TimeoutException:
+            print("登录后未找到用户头像，可能登录未成功。")
+            driver.save_screenshot(f"login_failed_account_{idx}.png")
+            continue
 
-        # 写入Excel
-        ws.cell(row=count, column=1, value=page)           # 页码
-        ws.cell(row=count, column=2, value=(count - 1))    # 序号
-        ws.cell(row=count, column=3, value=title)          # 标题
-        ws.cell(row=count, column=4, value=price)          # 价格
-        ws.cell(row=count, column=5, value=deal)           # 付款人数
-        ws.cell(row=count, column=6, value=location)       # 地理位置
-        ws.cell(row=count, column=7, value=shop)           # 店铺名称
-        ws.cell(row=count, column=8, value=postText)       # 是否包邮
-        ws.cell(row=count, column=9, value=t_url)          # 商品链接
-        ws.cell(row=count, column=10, value=shop_url)      # 商铺链接
-        ws.cell(row=count, column=11, value=img_url)       # 图片链接
-        # 写入风格（最多 3 个）
-        for i in range(min(3, len(style))):
-            ws.cell(row=count, column=12 + i, value=style[i])
-
-        count += 1  # 行数+1
-
-def task1():
-    """
-    任务1：示例
-    1. 初始化Excel
-    2. 初始化driver
-    3. 登录淘宝
-    4. 搜索关键词
-    5. 每页调用get_goods(page)
-    6. 结束后保存Excel并退出
-    """
-    global wb, ws, count
-
-    # ========== 你可以根据自己实际情况修改这些参数 ==========
-    EXCEL_FILE = "goods_data.xlsx"          # Excel 文件名
-    SHEET_NAME = "Task1"                    # Sheet名
-    DRIVER_PATH = "./chromedriver"          # ChromeDriver 路径
-    USERNAME = "test_user"                  # 淘宝账号
-    PASSWORD = "test_pass"                  # 淘宝密码
-    SEARCH_KEYWORD = "洗衣液"               # 要搜索的关键词
-    MAX_PAGES = 2                           # 爬多少页
-    HEADLESS = False                        # 是否无头
-    # ========================================================
-
-    # 1) 初始化 Excel
-    wb, ws = init_excel(EXCEL_FILE, SHEET_NAME)
-    # 2) 初始化 driver
-    driver = init_driver(DRIVER_PATH, HEADLESS)
-    # 3) 登录淘宝
-    login_taobao(driver, USERNAME, PASSWORD)
-
-    print(f"现在搜索商品：{SEARCH_KEYWORD}")
-    driver.get("https://s.taobao.com/")
-    time.sleep(2)
-
-    # 输入关键词后搜索
-    search_input = driver.find_element(By.ID, "q")
-    search_input.clear()
-    search_input.send_keys(SEARCH_KEYWORD)
-    search_input.send_keys(Keys.ENTER)
-    time.sleep(3)
-
-    # 4) 爬取多页
-    for page in range(1, MAX_PAGES + 1):
-        print(f"=== 处理第 {page} / {MAX_PAGES} 页 ===")
-        # 每页先向下滚动，触发懒加载
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
-
-        # 调用 get_goods(page)
-        get_goods(page, driver, wb, ws)
-
-        # 点击下一页（如果不是最后一页）
-        if page < MAX_PAGES:
+        all_items_data = []
+        for product in products:
+            print(f"正在执行：搜索商品 - {product}")
+            driver.get("https://s.taobao.com/")
             try:
-                next_btn = driver.find_element(By.CSS_SELECTOR, 'span.next-btn-helper')
-                next_btn.click()
-                time.sleep(3)
-            except NoSuchElementException:
-                print("   - 未找到下一页按钮，提前结束。")
-                break
+                # 使用显式等待确保搜索框可见
+                search_input = wait.until(EC.visibility_of_element_located((By.ID, "q")))
+                search_input.clear()
+                search_input.send_keys(product)
+                search_input.send_keys(Keys.ENTER)
+                driver.save_screenshot(f"search_results_product_{product}.png")
+            except TimeoutException:
+                print(f"搜索输入框未找到或不可见。")
+                driver.save_screenshot(f"search_error_product_{product}.png")
+                continue
+            except Exception as e:
+                print(f"搜索过程中发生异常：{e}")
+                driver.save_screenshot(f"search_error_product_{product}.png")
+                continue
 
-    # 5) 保存Excel
-    wb.save(EXCEL_FILE)
-    print(f"Excel 已保存到 {EXCEL_FILE}")
-    # 关闭浏览器
+            try:
+                # 等待搜索结果加载
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '.item')))
+            except TimeoutException:
+                print("搜索结果未加载或没有找到商品。")
+                driver.save_screenshot(f"no_results_product_{product}.png")
+                continue
+
+            # 翻页爬取
+            for page in range(1, max_pages+1):
+                print(f"  -> 第 {page} / {max_pages} 页")
+                try:
+                    driver.execute_script("document.body.style.zoom='25%'")
+                    time.sleep(5)
+                    # 滚动页面，确保懒加载触发
+                    scroll_to_bottom(driver, times=3, sleep_interval=2)
+                    time.sleep(5)  # 等待内容加载
+
+                    page_source = driver.page_source
+                    doc = pq(page_source)  # 定义 doc 对象
+
+                    # 使用显式等待确保商品元素加载
+                    items = doc('div.content--CUnfXXxv > div > div').items()  # 使用正确的选择器
+
+                    for it in items:
+                        try:
+                            info = parse_item_info(it)
+                            # 可以加上商品名和页码的标记
+                            info['search_keyword'] = product
+                            info['page'] = page
+                            all_items_data.append(info)
+                        except Exception as e:
+                            print(f"     解析商品出错: {e}")
+
+                    # 点击下一页
+                    if page < max_pages:
+                        try:
+                            next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="search-content-leftWrap"]/div[2]/div[4]/div/div/button[2]/span')))                            next_btn.click()
+                            time.sleep(3)  # 等待下一页加载
+                        except TimeoutException:
+                            print("     未找到下一页按钮，提前结束翻页。")
+                            break
+                        except ElementNotInteractableException:
+                            print("     下一页按钮不可交互，可能已到最后一页。")
+                            break
+                        except Exception as e:
+                            print(f"     点击下一页时发生异常：{e}")
+                            driver.save_screenshot(f"next_page_error_page_{page}_product_{product}.png")
+                            break
+                except Exception as e:
+                    print(f"  -> 翻页过程中发生异常：{e}")
+                    driver.save_screenshot(f"pagination_error_page_{page}_product_{product}.png")
+                    break
+
+        # 写入 Excel，每个账号一个 Sheet
+        headers = [
+            "search_keyword", "page", "title", "price",
+            "deal", "location", "shop", "postText",
+            "t_url", "shop_url", "img_url"
+        ]
+        try:
+            save_to_excel(output_file, acc_type, all_items_data, headers)
+            print(f"数据已保存到 {output_file} 的 '{acc_type}' 工作表中。")
+        except Exception as e:
+            print(f"保存 Excel 时发生异常：{e}")
+            driver.save_screenshot(f"save_excel_error_{acc_type}.png")
+
     driver.quit()
-    print("任务1已完成并退出程序。")
-
-if __name__ == "__main__":
-    """
-    如果你只想运行这一个任务，运行 python task1.py 即可。
-    任务执行完毕后自动结束程序。
-    """
-    task1()
+    print("===== 任务1执行完毕 =====")

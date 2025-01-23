@@ -5,6 +5,7 @@ import time
 import json
 import yaml
 import openpyxl
+from pyquery import PyQuery as pq
 from openpyxl import Workbook
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -90,53 +91,37 @@ def scroll_to_bottom(driver, times=3, sleep_interval=1):
         time.sleep(sleep_interval)
 
 def parse_item_info(item):
-    try:
-        title = item.find_element(By.CSS_SELECTOR, '.title').text  # 根据实际类名修改
-    except NoSuchElementException:
-        title = ""
+    item = pq(item)  # 将 item 转换为 PyQuery 对象
 
-    try:
-        price_int = item.find_element(By.CSS_SELECTOR, '.price .price-int').text  # 根据实际类名修改
-        price_float = item.find_element(By.CSS_SELECTOR, '.price .price-float').text  # 根据实际类名修改
-        price = float(f"{price_int}.{price_float}") if price_int and price_float else 0.0
-    except (NoSuchElementException, ValueError):
-        price = 0.0
+    # 定位商品标题
+    title = item.find('.title--qJ7Xg_90 span').text()
 
-    try:
-        deal = item.find_element(By.CSS_SELECTOR, '.deal').text  # 根据实际类名修改
-    except NoSuchElementException:
-        deal = ""
+    # 定位价格
+    price_int = item.find('.priceInt--yqqZMJ5a').text()
+    price_float = item.find('.priceFloat--XpixvyQ1').text()
+    price = float(f"{price_int}{price_float}") if price_int and price_float else 0.0
 
-    try:
-        location = item.find_element(By.CSS_SELECTOR, '.location').text  # 根据实际类名修改
-    except NoSuchElementException:
-        location = ""
+    # 定位交易量
+    deal = item.find('.realSales--XZJiepmt').text()
 
-    try:
-        shop = item.find_element(By.CSS_SELECTOR, '.shop').text  # 根据实际类名修改
-    except NoSuchElementException:
-        shop = ""
+    # 定位所在地信息
+    location = item.find('.procity--wlcT2xH9 span').text()
 
-    try:
-        postText_raw = item.find_element(By.CSS_SELECTOR, '.post-text').text  # 根据实际类名修改
-        postText = "包邮" if "包邮" in postText_raw else "/"
-    except NoSuchElementException:
-        postText = "/"
+    # 定位店名
+    shop = item.find('.shopNameText--DmtlsDKm').text()
 
-    try:
-        t_url = item.find_element(By.CSS_SELECTOR, '.t-url').get_attribute('href')  # 根据实际类名修改
-    except NoSuchElementException:
-        t_url = ""
+    # 定位包邮的位置
+    postText_raw = item.find('.subIconWrapper--Vl8zAdQn').text()
+    postText = "包邮" if "包邮" in postText_raw else "/"
 
-    try:
-        shop_url = item.find_element(By.CSS_SELECTOR, '.shop-url').get_attribute('href')  # 根据实际类名修改
-    except NoSuchElementException:
-        shop_url = ""
+    # 定位商品url
+    t_url = item.find('.doubleCardWrapperAdapt--mEcC7olq').attr('href')
 
-    try:
-        img_url = item.find_element(By.CSS_SELECTOR, '.img img').get_attribute('src')  # 根据实际类名修改
-    except NoSuchElementException:
-        img_url = ""
+    # 定位店名url
+    shop_url = item.find('.TextAndPic--grkZAtsC a').attr('href')
+
+    # 定位商品图片url
+    img_url = item.find('.mainPicAdaptWrapper--V_ayd2hD img').attr('src')
 
     return {
         "title": title,
@@ -154,6 +139,32 @@ def save_to_excel(excel_path, sheet_name, data_list, headers):
     """
     将数据写入Excel，如果文件不存在则创建，否则删除同名sheet后再创建
     """
+    # 确保输出目录存在
+    output_dir = os.path.dirname(excel_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)  # 自动创建目录
+    
+    if not os.path.exists(excel_path):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = sheet_name
+        ws.append(headers)  # 写入表头
+    else:
+        wb = openpyxl.load_workbook(excel_path)
+        # 删除已存在的同名sheet
+        if sheet_name in wb.sheetnames:
+            del wb[sheet_name]
+        ws = wb.create_sheet(sheet_name)
+        ws.append(headers)  # 写入新sheet的表头
+    
+    # 写入数据行
+    for row_data in data_list:
+        row = [row_data.get(h, "") for h in headers]
+        ws.append(row)
+    
+    wb.save(excel_path)
+    wb.close()   
+
     if not os.path.exists(excel_path):
         wb = Workbook()
         ws = wb.active
