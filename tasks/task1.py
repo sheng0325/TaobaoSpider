@@ -102,10 +102,10 @@ def run_task1(config, accounts):
                 print(f"  -> 第 {page} / {max_pages} 页")
                 try:
                     driver.execute_script("document.body.style.zoom='25%'")
-                    time.sleep(5)
+                    time.sleep(3)
                     # 滚动页面，确保懒加载触发
                     scroll_to_bottom(driver, times=3, sleep_interval=2)
-                    time.sleep(5)  # 等待内容加载
+                    time.sleep(2)  # 等待内容加载
 
                     page_source = driver.page_source
                     doc = pq(page_source)  # 定义 doc 对象
@@ -126,7 +126,8 @@ def run_task1(config, accounts):
                     # 点击下一页
                     if page < max_pages:
                         try:
-                            next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="search-content-leftWrap"]/div[2]/div[4]/div/div/button[2]/span')))                            next_btn.click()
+                            next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="search-content-leftWrap"]/div[3]/div[5]/div/div/button[2]/span')))                            
+                            next_btn.click()
                             time.sleep(3)  # 等待下一页加载
                         except TimeoutException:
                             print("     未找到下一页按钮，提前结束翻页。")
@@ -150,7 +151,8 @@ def run_task1(config, accounts):
             "t_url", "shop_url", "img_url"
         ]
         try:
-            save_to_excel(output_file, acc_type, all_items_data, headers)
+            sheet_name = username
+            save_to_excel(output_file, sheet_name, all_items_data, headers)
             print(f"数据已保存到 {output_file} 的 '{acc_type}' 工作表中。")
         except Exception as e:
             print(f"保存 Excel 时发生异常：{e}")
