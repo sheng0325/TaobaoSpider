@@ -40,12 +40,15 @@ task2:
   # 输出文件
   output_file: "./outputs/task2_output.xlsx"
 
-# 任务3配置（暂不实现）
+# 任务3配置
 task3:
-  # 保留预留结构
+  # 要使用的账号索引
   accounts_index:
-    - 0
-  # 更多配置...
+    - 1
+  # 输出文件路径
+  output_file: "./outputs/task3_output.xlsx"
+  # 每个商品最大评论数
+  max_comments: 100
 
 # 任务4配置
 task4:

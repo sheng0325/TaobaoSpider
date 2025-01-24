@@ -90,6 +90,18 @@ def scroll_to_bottom(driver, times=3, sleep_interval=1):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(sleep_interval)
 
+def scroll_element_to_bottom(driver, element, times=3, sleep_interval=1):
+    """
+    向下滚动指定元素多次，用于触发元素内懒加载
+    element: 要滚动的WebElement对象
+    """
+    for i in range(times):
+        driver.execute_script(
+            "arguments[0].scrollTop = arguments[0].scrollHeight;", 
+            element
+        )
+        time.sleep(sleep_interval)
+
 def parse_item_info(item):
     item = pq(item)  # 将 item 转换为 PyQuery 对象
 
