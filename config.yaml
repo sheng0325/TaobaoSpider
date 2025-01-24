@@ -27,7 +27,7 @@ task1:
 task2:
   # 要使用的账号索引
   accounts_index:
-    - 0
+    - 1
   # 每次爬取的页数（本示例只爬1页）
   pages_per_round: 1
   # 爬取总轮次
